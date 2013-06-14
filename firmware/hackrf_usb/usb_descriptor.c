@@ -24,7 +24,7 @@
 #include "usb_type.h"
 
 #define USB_VENDOR_ID			(0x1D50)
-#define USB_PRODUCT_ID			(0x604B)
+#define USB_PRODUCT_ID			(0x7777) // FIXME
 
 #define USB_WORD(x)	(x & 0xFF), ((x >> 8) & 0xFF)
 
@@ -147,38 +147,26 @@ uint8_t usb_descriptor_string_languages[] = {
 };
 
 uint8_t usb_descriptor_string_manufacturer[] = {
-    40,                           	// bLength
+    20,                           	// bLength
     USB_DESCRIPTOR_TYPE_STRING,     // bDescriptorType
-	'G', 0x00,
-	'r', 0x00,
-	'e', 0x00,
-	'a', 0x00,
-	't', 0x00,
-	' ', 0x00,
-	'S', 0x00,
-	'c', 0x00,
+	'N', 0x00,
 	'o', 0x00,
-	't', 0x00,
-	't', 0x00,
 	' ', 0x00,
-	'G', 0x00,
-	'a', 0x00,
-	'd', 0x00,
-	'g', 0x00,
+	'V', 0x00,
 	'e', 0x00,
-	't', 0x00,
-	's', 0x00,
+	'n', 0x00,
+	'd', 0x00,
+	'o', 0x00,
+	'r', 0x00,
 };
 
 uint8_t usb_descriptor_string_product[] = {
-    14,                        		// bLength
+    10,                        		// bLength
     USB_DESCRIPTOR_TYPE_STRING,		// bDescriptorType
-	'H', 0x00,
+	'm', 0x00,
+	'D', 0x00,
 	'a', 0x00,
-	'c', 0x00,
-	'k', 0x00,
-	'R', 0x00,
-	'F', 0x00,
+	'q', 0x00,
 };
 
 uint8_t* const usb_descriptor_strings[] = {

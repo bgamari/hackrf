@@ -214,6 +214,7 @@ usb_endpoint_t usb_endpoint_control_out = {
 	.setup_complete = usb_setup_complete,
 	.transfer_complete = usb_control_out_complete,
 };
+USB_DEFINE_QUEUE(usb_endpoint_control_out, 4);
 
 usb_endpoint_t usb_endpoint_control_in = {
 	.address = 0x80,
@@ -223,6 +224,7 @@ usb_endpoint_t usb_endpoint_control_in = {
 	.setup_complete = 0,
 	.transfer_complete = usb_control_in_complete,
 };
+static USB_DEFINE_QUEUE(usb_endpoint_control_in, 4);
 
 // NOTE: Endpoint number for IN and OUT are different. I wish I had some
 // evidence that having BULK IN and OUT on separate endpoint numbers was
@@ -236,6 +238,7 @@ usb_endpoint_t usb_endpoint_bulk_in = {
 	.setup_complete = 0,
 	.transfer_complete = usb_queue_transfer_complete
 };
+static USB_DEFINE_QUEUE(usb_endpoint_bulk_in, 4);
 
 usb_endpoint_t usb_endpoint_bulk_out = {
 	.address = 0x02,
@@ -245,6 +248,7 @@ usb_endpoint_t usb_endpoint_bulk_out = {
 	.setup_complete = 0,
 	.transfer_complete = usb_queue_transfer_complete
 };
+static USB_DEFINE_QUEUE(usb_endpoint_bulk_out, 4);
 
 void baseband_streaming_disable() {
 	sgpio_cpld_stream_disable();
@@ -918,12 +922,16 @@ int main(void) {
 	enable_1v8_power();
 	cpu_clock_init();
 
-        usb_queue_init();
         usb_set_configuration_changed_cb(usb_configuration_changed);
 	usb_peripheral_reset();
 	
 	usb_device_init(0, &usb_device);
 	
+        usb_queue_init(&usb_endpoint_control_out_queue);
+        usb_queue_init(&usb_endpoint_control_in_queue);
+        usb_queue_init(&usb_endpoint_bulk_out_queue);
+        usb_queue_init(&usb_endpoint_bulk_in_queue);
+
 	usb_endpoint_init(&usb_endpoint_control_out);
 	usb_endpoint_init(&usb_endpoint_control_in);
 	

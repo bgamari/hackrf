@@ -31,43 +31,43 @@
 #include "usb.h"
 #include "usb_queue.h"
 
-struct _usb_transfer_t {
-        struct _usb_transfer_t* next;
-        usb_transfer_descriptor_t td ATTR_ALIGNED(64);
-        unsigned int maximum_length;
-        usb_endpoint_t* endpoint;
-        transfer_completion_cb completion_cb;
-};
-
-usb_transfer_t transfer_pool[8];
-const unsigned int transfer_pool_size = sizeof(transfer_pool) / sizeof(usb_transfer_t);
-
-// Available transfer list
-usb_transfer_t* volatile free_transfers;
+usb_queue_t* endpoint_queues[12] = {};
 
 #define USB_ENDPOINT_INDEX(endpoint_address) (((endpoint_address & 0xF) * 2) + ((endpoint_address >> 7) & 1))
 
-// Pending transfer heads
-usb_transfer_t* volatile endpoint_transfers[12] = {};
+static usb_queue_t* endpoint_queue(
+        const usb_endpoint_t* const endpoint
+) {
+        uint32_t index = USB_ENDPOINT_INDEX(endpoint->address);
+        if (endpoint_queues[index] == NULL) while (1);
+        return endpoint_queues[index];
+}
 
-void usb_queue_init() {
-        usb_transfer_t* t = &transfer_pool[0];
-        free_transfers = t;
-        for (unsigned int i=0; i < transfer_pool_size - 1; i++, t++) {
+void usb_queue_init(
+        usb_queue_t* const queue
+) {
+        uint32_t index = USB_ENDPOINT_INDEX(queue->endpoint->address);
+        if (endpoint_queues[index] != NULL) while (1);
+        endpoint_queues[index] = queue;
+
+        usb_transfer_t* t = queue->free_transfers;
+        for (unsigned int i=0; i < queue->pool_size - 1; i++, t++) {
                 t->next = t+1;
+                t->queue = queue;
         }
         t->next = NULL;
 }
 
 /* Allocate a transfer */
-static usb_transfer_t* allocate_transfer()
-{
+static usb_transfer_t* allocate_transfer(
+        usb_queue_t* const queue
+) {
         bool aborted;
         usb_transfer_t* transfer;
-        while (free_transfers == NULL);
+        while (queue->free_transfers == NULL);
         do {
-                transfer = (void *) __ldrex((uint32_t *) &free_transfers);
-                aborted = __strex((uint32_t) transfer->next, (uint32_t *) &free_transfers);
+                transfer = (void *) __ldrex((uint32_t *) &queue->free_transfers);
+                aborted = __strex((uint32_t) transfer->next, (uint32_t *) &queue->free_transfers);
         } while (aborted);
         transfer->next = NULL;
         return transfer;
@@ -76,39 +76,43 @@ static usb_transfer_t* allocate_transfer()
 /* Place a transfer in the free list */
 static void free_transfer(usb_transfer_t* const transfer)
 {
+        usb_queue_t* const queue = transfer->queue;
         bool aborted;
         do {
-                transfer->next = (void *) __ldrex((uint32_t *) &free_transfers);
-                aborted = __strex((uint32_t) transfer, (uint32_t *) &free_transfers);
+                transfer->next = (void *) __ldrex((uint32_t *) &queue->free_transfers);
+                aborted = __strex((uint32_t) transfer, (uint32_t *) &queue->free_transfers);
         } while (aborted);
 }
 
 /* Add a transfer to the end of an endpoint's queue */
-static void endpoint_add_transfer(
-        const usb_endpoint_t* const endpoint,
+static void endpoint_queue_transfer(
         usb_transfer_t* const transfer
 ) {
-        uint_fast8_t index = USB_ENDPOINT_INDEX(endpoint->address);
+        usb_queue_t* const queue = transfer->queue;
         transfer->next = NULL;
-        if (endpoint_transfers[index] != NULL) {
-            usb_transfer_t* t = endpoint_transfers[index];
+        if (queue->active != NULL) {
+            usb_transfer_t* t = queue->active;
             while (t->next != NULL) t = t->next;
             t->next = transfer;
         } else {
-            endpoint_transfers[index] = transfer;
+            queue->active = transfer;
         }
 }
                 
-void usb_queue_flush_endpoint(const usb_endpoint_t* const endpoint)
+static void usb_queue_flush_queue(usb_queue_t* const queue)
 {
-        uint_fast8_t index = USB_ENDPOINT_INDEX(endpoint->address);
         cm_disable_interrupts();
-        while (endpoint_transfers[index]) {
-                usb_transfer_t * transfer = endpoint_transfers[index];
-                endpoint_transfers[index] = transfer->next;
+        while (queue->active) {
+                usb_transfer_t* transfer = queue->active;
+                queue->active = transfer->next;
                 free_transfer(transfer);
         }
         cm_enable_interrupts();
+}
+
+void usb_queue_flush_endpoint(const usb_endpoint_t* const endpoint)
+{
+        usb_queue_flush_queue(endpoint_queue(endpoint));
 }
 
 void usb_transfer_schedule(
@@ -117,10 +121,10 @@ void usb_transfer_schedule(
 	const uint32_t maximum_length,
         const transfer_completion_cb completion_cb
 ) {
-        usb_transfer_t* const transfer = allocate_transfer();
+        usb_queue_t* const queue = endpoint_queue(endpoint);
+        usb_transfer_t* const transfer = allocate_transfer(queue);
         assert(transfer != NULL);
         usb_transfer_descriptor_t* const td = &transfer->td;
-        uint_fast8_t index = USB_ENDPOINT_INDEX(endpoint->address);
 
 	// Configure the transfer descriptor
         td->next_dtd_pointer = USB_TD_NEXT_DTD_POINTER_TERMINATE;
@@ -139,18 +143,17 @@ void usb_transfer_schedule(
         // Fill in transfer fields
         transfer->maximum_length = maximum_length;
         transfer->completion_cb = completion_cb;
-        transfer->endpoint = (usb_endpoint_t*) endpoint;
 
         cm_disable_interrupts();
-        usb_transfer_t* tail = endpoint_transfers[index];
-        endpoint_add_transfer(endpoint, transfer);
+        usb_transfer_t* tail = queue->active;
+        endpoint_queue_transfer(transfer);
         if (tail == NULL) {
                 // The queue is currently empty, we need to re-prime
-                usb_endpoint_schedule_wait(endpoint, &transfer->td);
+                usb_endpoint_schedule_wait(queue->endpoint, &transfer->td);
         } else {
                 // The queue is currently running, try to append
                 for (; tail->next != NULL; tail = tail->next);
-                usb_endpoint_schedule_append(endpoint, &tail->td, &transfer->td);
+                usb_endpoint_schedule_append(queue->endpoint, &tail->td, &transfer->td);
         }
         cm_enable_interrupts();
 }
@@ -164,8 +167,9 @@ void usb_transfer_schedule_ack(
 /* Called when an endpoint might have completed a transfer */
 void usb_queue_transfer_complete(usb_endpoint_t* const endpoint)
 {
-        uint_fast8_t index = USB_ENDPOINT_INDEX(endpoint->address);
-        usb_transfer_t* transfer = endpoint_transfers[index];
+        usb_queue_t* const queue = endpoint_queue(endpoint);
+        if (queue == NULL) while(1); // Uh oh
+        usb_transfer_t* transfer = queue->active;
 
         while (transfer != NULL) {
                 uint8_t status = transfer->td.total_bytes;
@@ -184,7 +188,7 @@ void usb_queue_transfer_complete(usb_endpoint_t* const endpoint)
 
                 // Advance the head. We need to do this before invoking the completion
                 // callback as it might attempt to schedule a new transfer
-                endpoint_transfers[index] = transfer->next;
+                queue->active = transfer->next;
                 usb_transfer_t* next = transfer->next;
 
                 // Invoke completion callback

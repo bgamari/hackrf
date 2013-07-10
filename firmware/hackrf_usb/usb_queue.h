@@ -58,14 +58,21 @@ struct _usb_queue_t {
 
 void usb_queue_flush_endpoint(const usb_endpoint_t* const endpoint);
 
-void usb_transfer_schedule(
+int usb_transfer_schedule(
 	const usb_endpoint_t* const endpoint,
 	void* const data,
 	const uint32_t maximum_length,
         const transfer_completion_cb completion_cb
 );
 
-void usb_transfer_schedule_ack(
+int usb_transfer_schedule_block(
+	const usb_endpoint_t* const endpoint,
+	void* const data,
+	const uint32_t maximum_length,
+        const transfer_completion_cb completion_cb
+);
+
+int usb_transfer_schedule_ack(
 	const usb_endpoint_t* const endpoint
 );
 

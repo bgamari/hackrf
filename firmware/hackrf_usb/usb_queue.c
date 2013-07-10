@@ -65,7 +65,9 @@ static usb_transfer_t* allocate_transfer(
 ) {
         bool aborted;
         usb_transfer_t* transfer;
-        while (queue->free_transfers == NULL);
+        if (queue->free_transfers == NULL)
+                return NULL;
+
         do {
                 transfer = (void *) __ldrex((uint32_t *) &queue->free_transfers);
                 aborted = __strex((uint32_t) transfer->next, (uint32_t *) &queue->free_transfers);
@@ -116,7 +118,7 @@ void usb_queue_flush_endpoint(const usb_endpoint_t* const endpoint)
         usb_queue_flush_queue(endpoint_queue(endpoint));
 }
 
-void usb_transfer_schedule(
+int usb_transfer_schedule(
 	const usb_endpoint_t* const endpoint,
 	void* const data,
 	const uint32_t maximum_length,
@@ -124,7 +126,7 @@ void usb_transfer_schedule(
 ) {
         usb_queue_t* const queue = endpoint_queue(endpoint);
         usb_transfer_t* const transfer = allocate_transfer(queue);
-        assert(transfer != NULL);
+        if (transfer == NULL) return -1;
         usb_transfer_descriptor_t* const td = &transfer->td;
 
 	// Configure the transfer descriptor
@@ -157,12 +159,26 @@ void usb_transfer_schedule(
                 usb_endpoint_schedule_append(queue->endpoint, &tail->td, &transfer->td);
         }
         cm_enable_interrupts();
+        return 0;
 }
 	
-void usb_transfer_schedule_ack(
+int usb_transfer_schedule_block(
+	const usb_endpoint_t* const endpoint,
+	void* const data,
+	const uint32_t maximum_length,
+        const transfer_completion_cb completion_cb
+) {
+        int ret;
+        do {
+                ret = usb_transfer_schedule(endpoint, data, maximum_length, completion_cb);
+        } while (ret == -1);
+        return 0;
+}
+
+int usb_transfer_schedule_ack(
 	const usb_endpoint_t* const endpoint
 ) {
-        usb_transfer_schedule(endpoint, 0, 0, NULL);
+        return usb_transfer_schedule_block(endpoint, 0, 0, NULL);
 }
 
 /* Called when an endpoint might have completed a transfer */

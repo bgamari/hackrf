@@ -56,6 +56,7 @@ void usb_queue_init(
                 t->queue = queue;
         }
         t->next = NULL;
+        t->queue = queue;
 }
 
 /* Allocate a transfer */

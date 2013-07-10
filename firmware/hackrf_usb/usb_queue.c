@@ -87,8 +87,10 @@ static void free_transfer(usb_transfer_t* const transfer)
         } while (aborted);
 }
 
-/* Add a transfer to the end of an endpoint's queue */
-static void endpoint_queue_transfer(
+/* Add a transfer to the end of an endpoint's queue. Returns the old
+ * tail or NULL is the queue was empty
+ */
+static usb_transfer_t* endpoint_queue_transfer(
         usb_transfer_t* const transfer
 ) {
         usb_queue_t* const queue = transfer->queue;
@@ -97,8 +99,10 @@ static void endpoint_queue_transfer(
             usb_transfer_t* t = queue->active;
             while (t->next != NULL) t = t->next;
             t->next = transfer;
+            return t;
         } else {
             queue->active = transfer;
+            return NULL;
         }
 }
                 
@@ -148,14 +152,12 @@ int usb_transfer_schedule(
         transfer->completion_cb = completion_cb;
 
         cm_disable_interrupts();
-        usb_transfer_t* tail = queue->active;
-        endpoint_queue_transfer(transfer);
+        usb_transfer_t* tail = endpoint_queue_transfer(transfer);
         if (tail == NULL) {
                 // The queue is currently empty, we need to re-prime
                 usb_endpoint_schedule_wait(queue->endpoint, &transfer->td);
         } else {
                 // The queue is currently running, try to append
-                for (; tail->next != NULL; tail = tail->next);
                 usb_endpoint_schedule_append(queue->endpoint, &tail->td, &transfer->td);
         }
         cm_enable_interrupts();

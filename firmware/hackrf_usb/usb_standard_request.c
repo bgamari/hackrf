@@ -121,7 +121,7 @@ static usb_request_status_t usb_send_descriptor(
 		endpoint->in,
 		descriptor_data,
 	 	(setup_length > descriptor_length) ? descriptor_length : setup_length,
-		NULL
+		NULL, NULL
 	);
 	usb_transfer_schedule_ack(endpoint->out);
 	return USB_REQUEST_STATUS_OK;
@@ -269,7 +269,7 @@ static usb_request_status_t usb_standard_request_get_configuration_setup(
 		if( endpoint->device->configuration ) {
 			endpoint->buffer[0] = endpoint->device->configuration->number;
 		}
-		usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL);
+		usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL, NULL);
 		usb_transfer_schedule_ack(endpoint->out);
 		return USB_REQUEST_STATUS_OK;
 	} else {

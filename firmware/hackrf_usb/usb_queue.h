@@ -29,7 +29,7 @@
 
 typedef struct _usb_transfer_t usb_transfer_t;
 typedef struct _usb_queue_t usb_queue_t;
-typedef void (*transfer_completion_cb)(usb_transfer_t*, unsigned int);
+typedef void (*transfer_completion_cb)(void*, unsigned int);
 
 // This is an opaque datatype. Thou shall not touch these members.
 struct _usb_transfer_t {
@@ -38,6 +38,7 @@ struct _usb_transfer_t {
         unsigned int maximum_length;
         struct _usb_queue_t* queue;
         transfer_completion_cb completion_cb;
+        void* user_data;
 };
 
 // This is an opaque datatype. Thou shall not touch these members.
@@ -62,14 +63,16 @@ int usb_transfer_schedule(
 	const usb_endpoint_t* const endpoint,
 	void* const data,
 	const uint32_t maximum_length,
-        const transfer_completion_cb completion_cb
+        const transfer_completion_cb completion_cb,
+        void* const user_data
 );
 
 int usb_transfer_schedule_block(
 	const usb_endpoint_t* const endpoint,
 	void* const data,
 	const uint32_t maximum_length,
-        const transfer_completion_cb completion_cb
+        const transfer_completion_cb completion_cb,
+        void* const user_data
 );
 
 int usb_transfer_schedule_ack(

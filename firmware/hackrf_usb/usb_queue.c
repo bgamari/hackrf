@@ -126,7 +126,8 @@ int usb_transfer_schedule(
 	const usb_endpoint_t* const endpoint,
 	void* const data,
 	const uint32_t maximum_length,
-        const transfer_completion_cb completion_cb
+        const transfer_completion_cb completion_cb,
+        void* const user_data
 ) {
         usb_queue_t* const queue = endpoint_queue(endpoint);
         usb_transfer_t* const transfer = allocate_transfer(queue);
@@ -150,6 +151,7 @@ int usb_transfer_schedule(
         // Fill in transfer fields
         transfer->maximum_length = maximum_length;
         transfer->completion_cb = completion_cb;
+        transfer->user_data = user_data;
 
         cm_disable_interrupts();
         usb_transfer_t* tail = endpoint_queue_transfer(transfer);
@@ -168,11 +170,13 @@ int usb_transfer_schedule_block(
 	const usb_endpoint_t* const endpoint,
 	void* const data,
 	const uint32_t maximum_length,
-        const transfer_completion_cb completion_cb
+        const transfer_completion_cb completion_cb,
+        void* const user_data
 ) {
         int ret;
         do {
-                ret = usb_transfer_schedule(endpoint, data, maximum_length, completion_cb);
+                ret = usb_transfer_schedule(endpoint, data, maximum_length,
+                                            completion_cb, user_data);
         } while (ret == -1);
         return 0;
 }
@@ -180,7 +184,7 @@ int usb_transfer_schedule_block(
 int usb_transfer_schedule_ack(
 	const usb_endpoint_t* const endpoint
 ) {
-        return usb_transfer_schedule_block(endpoint, 0, 0, NULL);
+        return usb_transfer_schedule_block(endpoint, 0, 0, NULL, NULL);
 }
 
 /* Called when an endpoint might have completed a transfer */
@@ -214,7 +218,7 @@ void usb_queue_transfer_complete(usb_endpoint_t* const endpoint)
                 unsigned int total_bytes = (transfer->td.total_bytes & USB_TD_DTD_TOKEN_TOTAL_BYTES_MASK) >> USB_TD_DTD_TOKEN_TOTAL_BYTES_SHIFT;
                 unsigned int transferred = transfer->maximum_length - total_bytes;
                 if (transfer->completion_cb)
-                        transfer->completion_cb(transfer, transferred);
+                        transfer->completion_cb(transfer->user_data, transferred);
 
                 // Advance head and free transfer
                 free_transfer(transfer);

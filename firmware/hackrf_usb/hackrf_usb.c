@@ -345,7 +345,8 @@ usb_request_status_t usb_vendor_request_read_max2837(
 			const uint16_t value = max2837_reg_read(endpoint->setup.index);
 			endpoint->buffer[0] = value & 0xff;
 			endpoint->buffer[1] = value >> 8;
-			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 2, NULL);
+			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 2,
+                                                    NULL, NULL);
 			usb_transfer_schedule_ack(endpoint->out);
 			return USB_REQUEST_STATUS_OK;
 		}
@@ -381,7 +382,8 @@ usb_request_status_t usb_vendor_request_read_si5351c(
 		if( endpoint->setup.index < 256 ) {
 			const uint8_t value = si5351c_read_single(endpoint->setup.index);
 			endpoint->buffer[0] = value;
-			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL);
+			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1,
+                                                    NULL, NULL);
 			usb_transfer_schedule_ack(endpoint->out);
 			return USB_REQUEST_STATUS_OK;
 		}
@@ -437,7 +439,8 @@ usb_request_status_t usb_vendor_request_read_rffc5071(
 			value = rffc5071_reg_read(endpoint->setup.index);
 			endpoint->buffer[0] = value & 0xff;
 			endpoint->buffer[1] = value >> 8;
-			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 2, NULL);
+			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 2,
+                                                    NULL, NULL);
 			usb_transfer_schedule_ack(endpoint->out);
 			return USB_REQUEST_STATUS_OK;
 		}
@@ -477,7 +480,8 @@ usb_request_status_t usb_vendor_request_write_spiflash(
 				|| ((addr + len) > W25Q80BV_NUM_BYTES)) {
 			return USB_REQUEST_STATUS_STALL;
 		} else {
-                        usb_transfer_schedule_block(endpoint->out, &spiflash_buffer[0], len, NULL);
+                        usb_transfer_schedule_block(endpoint->out, &spiflash_buffer[0], len,
+                                                    NULL, NULL);
 			w25q80bv_setup();
 			return USB_REQUEST_STATUS_OK;
 		}
@@ -521,7 +525,8 @@ usb_request_status_t usb_vendor_request_read_spiflash(
 			{
 				spiflash_buffer[i] = u8_addr_pt[i];
 			}
-			usb_transfer_schedule_block(endpoint->in, &spiflash_buffer[0], len, NULL);
+			usb_transfer_schedule_block(endpoint->in, &spiflash_buffer[0], len,
+                                                    NULL, NULL);
 			return USB_REQUEST_STATUS_OK;
 		}
 	} else if (stage == USB_TRANSFER_STAGE_DATA) 
@@ -559,7 +564,8 @@ usb_request_status_t usb_vendor_request_write_cpld(
 		// len is limited to 64KB 16bits no overflow can happen
 		total_len = endpoint->setup.value;
 		len = endpoint->setup.length;
-		usb_transfer_schedule_block(endpoint->out, &cpld_xsvf_buffer[write_cpld_idx], len, NULL);
+		usb_transfer_schedule_block(endpoint->out, &cpld_xsvf_buffer[write_cpld_idx], len,
+                                            NULL, NULL);
 		return USB_REQUEST_STATUS_OK;
 	} else if (stage == USB_TRANSFER_STAGE_DATA) 
 	{
@@ -611,7 +617,7 @@ usb_request_status_t usb_vendor_request_read_board_id(
 {
 	if (stage == USB_TRANSFER_STAGE_SETUP) {
 		endpoint->buffer[0] = BOARD_ID;
-		usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL);
+		usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL, NULL);
 		usb_transfer_schedule_ack(endpoint->out);
 	}
 	return USB_REQUEST_STATUS_OK;
@@ -624,7 +630,7 @@ usb_request_status_t usb_vendor_request_read_version_string(
 
 	if (stage == USB_TRANSFER_STAGE_SETUP) {
 		length = (uint8_t)strlen(version_string);
-		usb_transfer_schedule_block(endpoint->in, version_string, length, NULL);
+		usb_transfer_schedule_block(endpoint->in, version_string, length, NULL, NULL);
 		usb_transfer_schedule_ack(endpoint->out);
 	}
 	return USB_REQUEST_STATUS_OK;
@@ -636,7 +642,8 @@ usb_request_status_t usb_vendor_request_set_freq(
 {
 	if (stage == USB_TRANSFER_STAGE_SETUP) 
 	{
-                usb_transfer_schedule_block(endpoint->out, &set_freq_params, sizeof(set_freq_params_t), NULL);
+                usb_transfer_schedule_block(endpoint->out, &set_freq_params, sizeof(set_freq_params_t),
+                                            NULL, NULL);
 		return USB_REQUEST_STATUS_OK;
 	} else if (stage == USB_TRANSFER_STAGE_DATA) 
 	{
@@ -658,7 +665,8 @@ usb_request_status_t usb_vendor_request_set_sample_rate_frac(
 {
 	if (stage == USB_TRANSFER_STAGE_SETUP) 
 	{
-                usb_transfer_schedule_block(endpoint->out, &set_sample_r_params, sizeof(set_sample_r_params_t), NULL);
+                usb_transfer_schedule_block(endpoint->out, &set_sample_r_params, sizeof(set_sample_r_params_t),
+                                            NULL, NULL);
 		return USB_REQUEST_STATUS_OK;
 	} else if (stage == USB_TRANSFER_STAGE_DATA) 
 	{
@@ -732,7 +740,8 @@ usb_request_status_t usb_vendor_request_read_partid_serialno(
 		read_partid_serialno.serial_no[3] = iap_cmd_res.status_res.iap_result[3];
 		
 		length = (uint8_t)sizeof(read_partid_serialno_t);
-		usb_transfer_schedule_block(endpoint->in, &read_partid_serialno, length, NULL);
+		usb_transfer_schedule_block(endpoint->in, &read_partid_serialno, length,
+                                            NULL, NULL);
 		usb_transfer_schedule_ack(endpoint->out);
 	}
 	return USB_REQUEST_STATUS_OK;
@@ -744,7 +753,8 @@ usb_request_status_t usb_vendor_request_set_lna_gain(
 	if( stage == USB_TRANSFER_STAGE_SETUP ) {
 			const uint8_t value = max2837_set_lna_gain(endpoint->setup.index);
 			endpoint->buffer[0] = value;
-			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL);
+			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1,
+                                                    NULL, NULL);
 			usb_transfer_schedule_ack(endpoint->out);
 			return USB_REQUEST_STATUS_OK;
 	}
@@ -757,7 +767,8 @@ usb_request_status_t usb_vendor_request_set_vga_gain(
 	if( stage == USB_TRANSFER_STAGE_SETUP ) {
 			const uint8_t value = max2837_set_vga_gain(endpoint->setup.index);
 			endpoint->buffer[0] = value;
-			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL);
+			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1,
+                                                    NULL, NULL);
 			usb_transfer_schedule_ack(endpoint->out);
 			return USB_REQUEST_STATUS_OK;
 	}
@@ -770,7 +781,8 @@ usb_request_status_t usb_vendor_request_set_txvga_gain(
 	if( stage == USB_TRANSFER_STAGE_SETUP ) {
 			const uint8_t value = max2837_set_txvga_gain(endpoint->setup.index);
 			endpoint->buffer[0] = value;
-			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1, NULL);
+			usb_transfer_schedule_block(endpoint->in, &endpoint->buffer, 1,
+                                                    NULL, NULL);
 			usb_transfer_schedule_ack(endpoint->out);
 			return USB_REQUEST_STATUS_OK;
 	}
@@ -964,7 +976,7 @@ int main(void) {
                                 ? &usb_endpoint_bulk_in : &usb_endpoint_bulk_out,
                                 &usb_bulk_buffer[0x0000],
                                 0x4000,
-                                NULL
+                                NULL, NULL
                                 );
                 }
 	
@@ -978,7 +990,7 @@ int main(void) {
                                 ? &usb_endpoint_bulk_in : &usb_endpoint_bulk_out,
                                 &usb_bulk_buffer[0x4000],
                                 0x4000,
-                                NULL
+                                NULL, NULL
                         );
                 }
 	}

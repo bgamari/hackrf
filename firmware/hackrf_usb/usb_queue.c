@@ -112,6 +112,8 @@ static void usb_queue_flush_queue(usb_queue_t* const queue)
         while (queue->active) {
                 usb_transfer_t* transfer = queue->active;
                 queue->active = transfer->next;
+                if (transfer->completion_cb)
+                        transfer->completion_cb(transfer->user_data, 0);
                 free_transfer(transfer);
         }
         cm_enable_interrupts();

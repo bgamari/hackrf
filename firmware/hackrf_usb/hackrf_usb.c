@@ -50,10 +50,9 @@ uint8_t* const usb_bulk_buffer = (uint8_t*)0x20004000;
 static volatile uint32_t usb_bulk_buffer_offset = 0;
 static const uint32_t usb_bulk_buffer_mask = 32768 - 1;
 
-/* TODO remove this big buffer and use streaming for CPLD */ 
-#define CPLD_XSVF_MAX_LEN (65536)
-uint8_t cpld_xsvf_buffer[CPLD_XSVF_MAX_LEN];
-uint16_t write_cpld_idx = 0;
+uint8_t cpld_xsvf_buffer[512];
+volatile bool start_cpld_program = false;
+volatile bool cpld_wait = false;
 
 uint8_t spiflash_buffer[W25Q80BV_PAGE_LEN];
 char version_string[] = VERSION_STRING;
@@ -553,18 +552,15 @@ usb_request_status_t usb_vendor_request_write_cpld(
 	usb_endpoint_t* const endpoint,
 	const usb_transfer_stage_t stage)
 {
-	int error, i;
 	uint16_t total_len;
 	uint16_t len;
-	#define WAIT_LOOP_DELAY (6000000)
-	#define ALL_LEDS	(PIN_LED1|PIN_LED2|PIN_LED3)
 
 	if (stage == USB_TRANSFER_STAGE_SETUP) 
 	{
 		// len is limited to 64KB 16bits no overflow can happen
 		total_len = endpoint->setup.value;
 		len = endpoint->setup.length;
-		usb_transfer_schedule_block(endpoint->out, &cpld_xsvf_buffer[write_cpld_idx], len,
+		usb_transfer_schedule_block(endpoint->out, cpld_xsvf_buffer, len,
                                             NULL, NULL);
 		return USB_REQUEST_STATUS_OK;
 	} else if (stage == USB_TRANSFER_STAGE_DATA) 
@@ -572,44 +568,59 @@ usb_request_status_t usb_vendor_request_write_cpld(
 		// len is limited to 64KB 16bits no overflow can happen
 		total_len = endpoint->setup.value;
 		len = endpoint->setup.length;
-		write_cpld_idx = write_cpld_idx + len;
-		// Check if all bytes received and write CPLD
-		if(write_cpld_idx == total_len)
-		{
-			write_cpld_idx = 0;
-			error = cpld_jtag_program(total_len, &cpld_xsvf_buffer[write_cpld_idx]);
-			// TO FIX ACK shall be not delayed so much as cpld prog can take up to 5s.
-			if(error == 0)
-			{		
-				usb_transfer_schedule_ack(endpoint->in);
-				
-				/* blink LED1, LED2, and LED3 on success */
-				while (1)
-				{
-					gpio_set(PORT_LED1_3, ALL_LEDS); /* LEDs on */
-					for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
-						__asm__("nop");
-					gpio_clear(PORT_LED1_3, ALL_LEDS); /* LEDs off */
-					for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
-						__asm__("nop");
-				}
-				return USB_REQUEST_STATUS_OK;
-			}else
-			{
-				/* LED3 (Red) steady on error */
-				gpio_set(PORT_LED1_3, PIN_LED3); /* LEDs on */
-				while (1);
-				return USB_REQUEST_STATUS_STALL;
-			}
-		}else
-		{
-			usb_transfer_schedule_ack(endpoint->in);
-			return USB_REQUEST_STATUS_OK;
-		}
+
+                if (!start_cpld_program) {
+                        start_cpld_program = true;
+                } else {
+                        // Notify the cpld_program process we have new data
+                        cpld_wait = false;
+
+                        // Wait until we're done processing this packet before ACKing
+                        while (cpld_wait);
+                }
+
+                usb_transfer_schedule_ack(endpoint->in);
+                return USB_REQUEST_STATUS_OK;
 	} else 
 	{
 		return USB_REQUEST_STATUS_OK;
 	}
+}
+
+static void refill_cpld_buffer(void)
+{
+        cpld_wait = true;
+        // Wait until more data is available
+        while (cpld_wait);
+}
+
+static void cpld_program(void)
+{
+        #define WAIT_LOOP_DELAY (6000000)
+        #define ALL_LEDS	(PIN_LED1|PIN_LED2|PIN_LED3)
+        int i;
+        int error = cpld_jtag_program(sizeof(cpld_xsvf_buffer),
+                                      cpld_xsvf_buffer,
+                                      refill_cpld_buffer);
+        start_cpld_program = false;
+        if(error == 0)
+        {		
+                /* blink LED1, LED2, and LED3 on success */
+                while (1)
+                {
+                        gpio_set(PORT_LED1_3, ALL_LEDS); /* LEDs on */
+                        for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
+                                __asm__("nop");
+                        gpio_clear(PORT_LED1_3, ALL_LEDS); /* LEDs off */
+                        for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
+                                __asm__("nop");
+                }
+        }else
+        {
+                /* LED3 (Red) steady on error */
+                gpio_set(PORT_LED1_3, PIN_LED3); /* LEDs on */
+                while (1);
+        }
 }
 
 usb_request_status_t usb_vendor_request_read_board_id(
@@ -965,12 +976,16 @@ int main(void) {
 	switchctrl = SWITCHCTRL_AMP_BYPASS;
 #endif
 
+        unsigned int last_sent = 0;
 	while(true) {
-		// Wait until buffer 0 is transmitted/received.
-		while( usb_bulk_buffer_offset < 16384 );
+        // Check to see whether we need to try programming the CPLD
+        if (start_cpld_program) {
+                cpld_program();
+        }
 
 		// Set up IN transfer of buffer 0.
-                if (transceiver_mode != TRANSCEIVER_MODE_OFF) {
+                if (transceiver_mode != TRANSCEIVER_MODE_OFF
+                    && last_sent == 1 && usb_bulk_buffer_offset > 16384) {
                         usb_transfer_schedule_block(
                                 (transceiver_mode == TRANSCEIVER_MODE_RX)
                                 ? &usb_endpoint_bulk_in : &usb_endpoint_bulk_out,
@@ -978,13 +993,12 @@ int main(void) {
                                 0x4000,
                                 NULL, NULL
                                 );
+                        last_sent = 0;
                 }
-	
-		// Wait until buffer 1 is transmitted/received.
-		while( usb_bulk_buffer_offset >= 16384 );
 
 		// Set up IN transfer of buffer 1.
-                if (transceiver_mode != TRANSCEIVER_MODE_OFF) {
+                if (transceiver_mode != TRANSCEIVER_MODE_OFF
+                    && last_sent == 0 && usb_bulk_buffer_offset < 16384) {
                         usb_transfer_schedule_block(
                                 (transceiver_mode == TRANSCEIVER_MODE_RX)
                                 ? &usb_endpoint_bulk_in : &usb_endpoint_bulk_out,
@@ -992,6 +1006,7 @@ int main(void) {
                                 0x4000,
                                 NULL, NULL
                         );
+                        last_sent = 1;
                 }
 	}
 	

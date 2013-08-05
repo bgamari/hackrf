@@ -29,7 +29,26 @@
 
 typedef struct _usb_transfer_t usb_transfer_t;
 typedef struct _usb_queue_t usb_queue_t;
-typedef void (*transfer_completion_cb)(void*, unsigned int);
+
+/*
+ * USB transfer status flags: These are passed to the transfer
+ * completion callback
+ */
+
+// HALTED bit was set in dTD
+#define USB_TRANSFER_STATUS_HALTED               0x1
+// BUFFER_ERROR bit was set in dTD
+#define USB_TRANSFER_STATUS_BUFFER_ERROR         0x2
+// TRANSACTION_ERROR bit was set in dTD
+#define USB_TRANSFER_STATUS_TRANSACTION_ERROR    0x4
+// The transfer was dropped as the endpoint is now being flushed;
+// do not submit new transfers until the flushing process has
+// completed.
+#define USB_TRANSFER_STATUS_FLUSHING             0x8
+
+typedef void (*transfer_completion_cb)(unsigned int status,
+                                       unsigned int bytes_transferred,
+                                       void* user_data);
 
 // This is an opaque datatype. Thou shall not touch these members.
 struct _usb_transfer_t {

@@ -113,7 +113,8 @@ static void usb_queue_flush_queue(usb_queue_t* const queue)
                 usb_transfer_t* transfer = queue->active;
                 queue->active = transfer->next;
                 if (transfer->completion_cb)
-                        transfer->completion_cb(transfer->user_data, 0);
+                        transfer->completion_cb(USB_TRANSFER_STATUS_FLUSHING, 0,
+                                transfer->user_data);
                 free_transfer(transfer);
         }
         cm_enable_interrupts();
@@ -198,18 +199,19 @@ void usb_queue_transfer_complete(usb_endpoint_t* const endpoint)
 
         while (transfer != NULL) {
                 uint8_t status = transfer->td.total_bytes;
-
-                // Check for failures
-                if (   status & USB_TD_DTD_TOKEN_STATUS_HALTED
-                    || status & USB_TD_DTD_TOKEN_STATUS_BUFFER_ERROR
-                    || status & USB_TD_DTD_TOKEN_STATUS_TRANSACTION_ERROR) {
-                        // TODO: Uh oh, do something useful here
-                        while (1);
-                }
+                uint32_t transfer_status = 0;
 
                 // Still not finished
                 if (status & USB_TD_DTD_TOKEN_STATUS_ACTIVE) 
                         break;
+
+                // Check for failures
+                if (status & USB_TD_DTD_TOKEN_STATUS_HALTED)
+                        transfer_status |= USB_TRANSFER_STATUS_HALTED;
+                if (status & USB_TD_DTD_TOKEN_STATUS_BUFFER_ERROR)
+                        transfer_status |= USB_TRANSFER_STATUS_BUFFER_ERROR;
+                if (status & USB_TD_DTD_TOKEN_STATUS_TRANSACTION_ERROR)
+                        transfer_status |= USB_TRANSFER_STATUS_TRANSACTION_ERROR;
 
                 // Advance the head. We need to do this before invoking the completion
                 // callback as it might attempt to schedule a new transfer
@@ -220,7 +222,7 @@ void usb_queue_transfer_complete(usb_endpoint_t* const endpoint)
                 unsigned int total_bytes = (transfer->td.total_bytes & USB_TD_DTD_TOKEN_TOTAL_BYTES_MASK) >> USB_TD_DTD_TOKEN_TOTAL_BYTES_SHIFT;
                 unsigned int transferred = transfer->maximum_length - total_bytes;
                 if (transfer->completion_cb)
-                        transfer->completion_cb(transfer->user_data, transferred);
+                        transfer->completion_cb(transfer_status, transferred, transfer->user_data);
 
                 // Advance head and free transfer
                 free_transfer(transfer);

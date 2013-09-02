@@ -616,6 +616,7 @@ usb_request_status_t usb_vendor_request_write_cpld(
 		return USB_REQUEST_STATUS_OK;
 	} else
 	{
+		usb_endpoint_schedule_ack(&usb_endpoint_control_in);
 		return USB_REQUEST_STATUS_OK;
 	}
 }

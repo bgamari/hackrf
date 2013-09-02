@@ -68,6 +68,7 @@ int cpld_jtag_program(
 	cpld_jtag_setup();
 	xsvf_buffer = buffer;
 	xsvf_buffer_len = buffer_length;
+	xsvf_pos = 0;
         refill_buffer = refill;
 	error = xsvfExecute();
 	cpld_jtag_release();

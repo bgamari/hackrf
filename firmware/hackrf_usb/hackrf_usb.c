@@ -338,7 +338,7 @@ void set_transceiver_mode(const transceiver_mode_t new_transceiver_mode) {
 	nvic_enable_irq(NVIC_SGPIO_IRQ);
 	SGPIO_SET_EN_1 = (1 << SGPIO_SLICE_A);
 
-    sgpio_cpld_stream_enable();
+	sgpio_cpld_stream_enable();
 }
 
 usb_request_status_t usb_vendor_request_set_transceiver_mode(
@@ -596,30 +596,25 @@ usb_request_status_t usb_vendor_request_write_cpld(
 
 	if (stage == USB_TRANSFER_STAGE_SETUP) 
 	{
-		// len is limited to 64KB 16bits no overflow can happen
 		total_len = endpoint->setup.value;
 		len = endpoint->setup.length;
 		usb_endpoint_schedule(endpoint->out, cpld_xsvf_buffer, len);
 		return USB_REQUEST_STATUS_OK;
-	} else if (stage == USB_TRANSFER_STAGE_DATA) 
+	} else if (stage == USB_TRANSFER_STAGE_DATA)
 	{
-		// len is limited to 64KB 16bits no overflow can happen
 		total_len = endpoint->setup.value;
 		len = endpoint->setup.length;
 
-                if (!start_cpld_program) {
-                        start_cpld_program = true;
-                } else {
-                        // Notify the cpld_program process we have new data
-                        cpld_wait = false;
+		if (!start_cpld_program) {
+			start_cpld_program = true;
+		} else {
+			// Notify the cpld_program process we have new data
+			cpld_wait = false;
+			// We will ACK during refill
+		}
 
-                        // Wait until we're done processing this packet before ACKing
-                        while (cpld_wait);
-                }
-
-                usb_endpoint_schedule_ack(endpoint->in);
-                return USB_REQUEST_STATUS_OK;
-	} else 
+		return USB_REQUEST_STATUS_OK;
+	} else
 	{
 		return USB_REQUEST_STATUS_OK;
 	}
@@ -627,38 +622,40 @@ usb_request_status_t usb_vendor_request_write_cpld(
 
 static void refill_cpld_buffer(void)
 {
-        cpld_wait = true;
-        // Wait until more data is available
-        while (cpld_wait);
+	cpld_wait = true;
+	// Acknowledge the last buffer
+	usb_endpoint_schedule_ack(&usb_endpoint_control_in);
+	// Wait until more data is available
+	while (cpld_wait);
 }
 
 static void cpld_program(void)
 {
-        #define WAIT_LOOP_DELAY (6000000)
-        #define ALL_LEDS	(PIN_LED1|PIN_LED2|PIN_LED3)
-        int i;
-        int error = cpld_jtag_program(sizeof(cpld_xsvf_buffer),
-                                      cpld_xsvf_buffer,
-                                      refill_cpld_buffer);
-        start_cpld_program = false;
-        if(error == 0)
-        {		
-                /* blink LED1, LED2, and LED3 on success */
-                while (1)
-                {
-                        gpio_set(PORT_LED1_3, ALL_LEDS); /* LEDs on */
-                        for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
-                                __asm__("nop");
-                        gpio_clear(PORT_LED1_3, ALL_LEDS); /* LEDs off */
-                        for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
-                                __asm__("nop");
-                }
-        }else
-        {
-                /* LED3 (Red) steady on error */
-                gpio_set(PORT_LED1_3, PIN_LED3); /* LEDs on */
-                while (1);
-        }
+	#define WAIT_LOOP_DELAY (6000000)
+	#define ALL_LEDS	(PIN_LED1|PIN_LED2|PIN_LED3)
+	int i;
+	int error = cpld_jtag_program(sizeof(cpld_xsvf_buffer),
+				      cpld_xsvf_buffer,
+				      refill_cpld_buffer);
+	start_cpld_program = false;
+	if(error == 0)
+	{		
+		/* blink LED1, LED2, and LED3 on success */
+		while (1)
+		{
+			gpio_set(PORT_LED1_3, ALL_LEDS); /* LEDs on */
+			for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
+				__asm__("nop");
+			gpio_clear(PORT_LED1_3, ALL_LEDS); /* LEDs off */
+			for (i = 0; i < WAIT_LOOP_DELAY; i++)	/* Wait a bit. */
+				__asm__("nop");
+		}
+	}else
+	{
+		/* LED3 (Red) steady on error */
+		gpio_set(PORT_LED1_3, PIN_LED3); /* LEDs on */
+		while (1);
+	}
 }
 
 usb_request_status_t usb_vendor_request_read_board_id(

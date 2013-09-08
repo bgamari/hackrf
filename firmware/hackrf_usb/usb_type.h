@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <libopencm3/usb/usbstd.h>
 
 // TODO: Move this to some common compiler-tricks location.
 #define ATTR_PACKED __attribute__((packed))
@@ -57,20 +58,6 @@ typedef struct ATTR_PACKED {
 } usb_setup_t;
 
 typedef enum {
-	USB_STANDARD_REQUEST_GET_STATUS = 0,
-	USB_STANDARD_REQUEST_CLEAR_FEATURE = 1,
-	USB_STANDARD_REQUEST_SET_FEATURE = 3,
-	USB_STANDARD_REQUEST_SET_ADDRESS = 5,
-	USB_STANDARD_REQUEST_GET_DESCRIPTOR = 6,
-	USB_STANDARD_REQUEST_SET_DESCRIPTOR = 7,
-	USB_STANDARD_REQUEST_GET_CONFIGURATION = 8,
-	USB_STANDARD_REQUEST_SET_CONFIGURATION = 9,
-	USB_STANDARD_REQUEST_GET_INTERFACE = 10,
-	USB_STANDARD_REQUEST_SET_INTERFACE = 11,
-	USB_STANDARD_REQUEST_SYNCH_FRAME = 12,
-} usb_standard_request_t;
-
-typedef enum {
 	USB_SETUP_REQUEST_TYPE_shift = 5,
 	USB_SETUP_REQUEST_TYPE_mask = 3 << USB_SETUP_REQUEST_TYPE_shift,
 	
@@ -91,17 +78,6 @@ typedef enum {
 } usb_transfer_direction_t;
 	
 typedef enum {
-	USB_DESCRIPTOR_TYPE_DEVICE = 1,
-	USB_DESCRIPTOR_TYPE_CONFIGURATION = 2,
-	USB_DESCRIPTOR_TYPE_STRING = 3,
-	USB_DESCRIPTOR_TYPE_INTERFACE = 4,
-	USB_DESCRIPTOR_TYPE_ENDPOINT = 5,
-	USB_DESCRIPTOR_TYPE_DEVICE_QUALIFIER = 6,
-	USB_DESCRIPTOR_TYPE_OTHER_SPEED_CONFIGURATION = 7,
-	USB_DESCRIPTOR_TYPE_INTERFACE_POWER = 8,
-} usb_descriptor_type_t;
-
-typedef enum {
 	USB_TRANSFER_TYPE_CONTROL = 0,
 	USB_TRANSFER_TYPE_ISOCHRONOUS = 1,
 	USB_TRANSFER_TYPE_BULK = 2,
@@ -116,7 +92,7 @@ typedef enum {
 } usb_speed_t;
 
 typedef struct {
-	const uint8_t* const descriptor;
+	const struct usb_config_descriptor* const descriptor;
 	const uint32_t number;
 	const usb_speed_t speed;
 } usb_configuration_t;

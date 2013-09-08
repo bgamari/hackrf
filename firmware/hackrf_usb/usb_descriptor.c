@@ -28,8 +28,6 @@
 #define USB_VENDOR_ID			(0x1D50)
 #define USB_PRODUCT_ID			(0x604B)
 
-#define USB_WORD(x)	(x & 0xFF), ((x >> 8) & 0xFF)
-
 #define USB_MAX_PACKET0     	(64)
 #define USB_MAX_PACKET_BULK_FS	(64)
 #define USB_MAX_PACKET_BULK_HS	(512)
@@ -39,116 +37,156 @@
 
 #define USB_STRING_LANGID		(0x0409)
 
-uint8_t usb_descriptor_device[] = {
-	18,				   // bLength
-	USB_DESCRIPTOR_TYPE_DEVICE,	   // bDescriptorType
-	USB_WORD(0x0200),		   // bcdUSB
-	0x00,				   // bDeviceClass
-	0x00,				   // bDeviceSubClass
-	0x00,				   // bDeviceProtocol
-	USB_MAX_PACKET0,		   // bMaxPacketSize0
-	USB_WORD(USB_VENDOR_ID),	   // idVendor
-	USB_WORD(USB_PRODUCT_ID),	   // idProduct
-	USB_WORD(0x0100),		   // bcdDevice
-	0x01,				   // iManufacturer
-	0x02,				   // iProduct
-	0x00,				   // iSerialNumber
-	0x01				   // bNumConfigurations
+#define DESCRIPTOR __attribute__((section(".data")))
+
+DESCRIPTOR
+const struct usb_device_descriptor usb_descriptor_device = {
+	.bLength	     = USB_DT_DEVICE_SIZE,
+	.bDescriptorType     = USB_DT_DEVICE,
+	.bcdUSB		     = 0x0200,
+	.bDeviceClass	     = 0x00,
+	.bDeviceSubClass     = 0x00,
+	.bDeviceProtocol     = 0x00,
+	.bMaxPacketSize0     = USB_MAX_PACKET0,
+	.idVendor	     = USB_VENDOR_ID,
+	.idProduct	     = USB_PRODUCT_ID,
+	.bcdDevice	     = 0x0100,
+	.iManufacturer	     = 0x01,
+	.iProduct	     = 0x02,
+	.iSerialNumber	     = 0x00,
+	.bNumConfigurations  = 0x01
 };
 
-uint8_t usb_descriptor_device_qualifier[] = {
-	10,					// bLength
-	USB_DESCRIPTOR_TYPE_DEVICE_QUALIFIER,	// bDescriptorType
-	USB_WORD(0x0200),			// bcdUSB
-	0x00,					// bDeviceClass
-	0x00,					// bDeviceSubClass
-	0x00,					// bDeviceProtocol
-	64,					// bMaxPacketSize0
-	0x01,					// bNumOtherSpeedConfigurations
-	0x00					// bReserved
+DESCRIPTOR
+const struct usb_device_qualifier_descriptor usb_descriptor_device_qualifier = {
+	.bLength	     = 10,
+	.bDescriptorType     = USB_DT_DEVICE,
+	.bcdUSB		     = 0x0200,
+	.bDeviceClass	     = 0x00,
+	.bDeviceSubClass     = 0x00,
+	.bDeviceProtocol     = 0x00,
+	.bMaxPacketSize0     = 64,
+	.bNumConfigurations  = 0x01,
+	.bReserved	     = 0x00
 };
 
-uint8_t usb_descriptor_configuration_full_speed[] = {
-	9,					// bLength
-	USB_DESCRIPTOR_TYPE_CONFIGURATION,	// bDescriptorType
-	USB_WORD(32),				// wTotalLength
-	0x01,					// bNumInterfaces
-	0x01,					// bConfigurationValue
-	0x03,					// iConfiguration
-	0x80,					// bmAttributes: USB-powered
-	250,					// bMaxPower: 500mA
-
-	9,							// bLength
-	USB_DESCRIPTOR_TYPE_INTERFACE,		// bDescriptorType
-	0x00,							// bInterfaceNumber
-	0x00,							// bAlternateSetting
-	0x02,							// bNumEndpoints
-	0xFF,							// bInterfaceClass: vendor-specific
-	0xFF,							// bInterfaceSubClass
-	0xFF,							// bInterfaceProtocol: vendor-specific
-	0x00,							// iInterface
-
-	7,							// bLength
-	USB_DESCRIPTOR_TYPE_ENDPOINT,		// bDescriptorType
-	USB_BULK_IN_EP_ADDR,				// bEndpointAddress
-	0x02,							// bmAttributes: BULK
-	USB_WORD(USB_MAX_PACKET_BULK_FS),	// wMaxPacketSize
-	0x00,							// bInterval: no NAK
-
-	7,							// bLength
-	USB_DESCRIPTOR_TYPE_ENDPOINT,		// bDescriptorType
-	USB_BULK_OUT_EP_ADDR,			// bEndpointAddress
-	0x02,							// bmAttributes: BULK
-	USB_WORD(USB_MAX_PACKET_BULK_FS),	// wMaxPacketSize
-	0x00,							// bInterval: no NAK
-
-	0,									// TERMINATOR
+DESCRIPTOR
+const struct usb_endpoint_descriptor usb_full_speed_config1_endpoints[] = {
+        { // IN
+	.bLength	     = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType     = USB_DT_ENDPOINT,
+	.bEndpointAddress    = USB_BULK_IN_EP_ADDR,
+	.bmAttributes	     = USB_ENDPOINT_ATTR_BULK,
+	.wMaxPacketSize	     = USB_MAX_PACKET_BULK_FS,
+	.bInterval	     = 0x00
+        },
+        { // OUT
+	.bLength	     = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType     = USB_DT_ENDPOINT,
+	.bEndpointAddress    = USB_BULK_OUT_EP_ADDR,
+	.bmAttributes	     = USB_ENDPOINT_ATTR_BULK,
+	.wMaxPacketSize	     = USB_MAX_PACKET_BULK_FS,
+	.bInterval	     = 0x00
+        }
 };
 
-uint8_t usb_descriptor_configuration_high_speed[] = {
-	9,							// bLength
-	USB_DESCRIPTOR_TYPE_CONFIGURATION,	// bDescriptorType
-	USB_WORD(32),						// wTotalLength
-	0x01,							// bNumInterfaces
-	0x01,							// bConfigurationValue
-	0x03,							// iConfiguration
-	0x80,							// bmAttributes: USB-powered
-	250,							// bMaxPower: 500mA
-
-	9,							// bLength
-	USB_DESCRIPTOR_TYPE_INTERFACE,		// bDescriptorType
-	0x00,							// bInterfaceNumber
-	0x00,							// bAlternateSetting
-	0x02,							// bNumEndpoints
-	0xFF,							// bInterfaceClass: vendor-specific
-	0xFF,							// bInterfaceSubClass
-	0xFF,							// bInterfaceProtocol: vendor-specific
-	0x00,							// iInterface
-
-	7,							// bLength
-	USB_DESCRIPTOR_TYPE_ENDPOINT,		// bDescriptorType
-	USB_BULK_IN_EP_ADDR,				// bEndpointAddress
-	0x02,							// bmAttributes: BULK
-	USB_WORD(USB_MAX_PACKET_BULK_HS),	// wMaxPacketSize
-	0x00,							// bInterval: no NAK
-
-	7,								// bLength
-	USB_DESCRIPTOR_TYPE_ENDPOINT,		// bDescriptorType
-	USB_BULK_OUT_EP_ADDR,			// bEndpointAddress
-	0x02,							// bmAttributes: BULK
-	USB_WORD(USB_MAX_PACKET_BULK_HS),	// wMaxPacketSize
-	0x00,							// bInterval: no NAK
-
-	0,									// TERMINATOR
+DESCRIPTOR
+const struct usb_endpoint_descriptor usb_high_speed_config1_endpoints[] = {
+        { // IN
+	.bLength	     = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType     = USB_DT_ENDPOINT,
+	.bEndpointAddress    = USB_BULK_IN_EP_ADDR,
+	.bmAttributes	     = USB_ENDPOINT_ATTR_BULK,
+	.wMaxPacketSize	     = USB_MAX_PACKET_BULK_HS,
+	.bInterval	     = 0x00
+        },
+        { // OUT
+	.bLength	     = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType     = USB_DT_ENDPOINT,
+	.bEndpointAddress    = USB_BULK_OUT_EP_ADDR,
+	.bmAttributes	     = USB_ENDPOINT_ATTR_BULK,
+	.wMaxPacketSize	     = USB_MAX_PACKET_BULK_HS,
+	.bInterval	     = 0x00
+        }
 };
 
-struct usb_string_descriptor usb_descriptor_string_languages = {
+DESCRIPTOR
+const struct usb_interface_descriptor usb_configuration_full_speed_iface = {
+	.bLength	    = USB_DT_INTERFACE_SIZE,
+	.bDescriptorType    = USB_DT_INTERFACE,
+	.bInterfaceNumber   = 1,
+	.bAlternateSetting  = 0,
+	.bNumEndpoints	    = 2,
+	.bInterfaceClass    = USB_CLASS_VENDOR,
+	.bInterfaceSubClass = 0,
+	.bInterfaceProtocol = 0,
+	.iInterface	    = 0,
+
+	.endpoint	    = usb_full_speed_config1_endpoints
+};
+
+DESCRIPTOR
+const struct usb_interface_descriptor usb_configuration_high_speed_iface = {
+	.bLength	    = USB_DT_INTERFACE_SIZE,
+	.bDescriptorType    = USB_DT_INTERFACE,
+	.bInterfaceNumber   = 1,
+	.bAlternateSetting  = 0,
+	.bNumEndpoints	    = 2,
+	.bInterfaceClass    = USB_CLASS_VENDOR,
+	.bInterfaceSubClass = 0,
+	.bInterfaceProtocol = 0,
+	.iInterface	    = 0,
+
+	.endpoint	    = usb_high_speed_config1_endpoints,
+};
+
+DESCRIPTOR
+const struct usb_interface interfaces[] = {
+	{
+	.num_altsetting	    = 0x01,
+	.altsetting	    = &usb_configuration_full_speed_iface,
+	},
+	{
+	.num_altsetting	    = 0x01,
+	.altsetting	    = &usb_configuration_high_speed_iface,
+	},
+};
+
+DESCRIPTOR
+const struct usb_config_descriptor usb_descriptor_configuration_full_speed = {
+	.bLength	     = USB_DT_CONFIGURATION_SIZE,
+	.bDescriptorType     = USB_DT_CONFIGURATION,
+	.wTotalLength	     = 32,
+	.bNumInterfaces	     = 0x01,
+	.bConfigurationValue = 0x01,
+	.iConfiguration	     = 0x03,
+	.bmAttributes	     = 0x80,
+	.bMaxPower	     = 250,
+	.interface	     = &interfaces[0]
+};
+
+DESCRIPTOR
+const struct usb_config_descriptor usb_descriptor_configuration_high_speed = {
+	.bLength	     = USB_DT_CONFIGURATION_SIZE,
+	.bDescriptorType     = USB_DT_CONFIGURATION,
+	.wTotalLength	     = 32,
+	.bNumInterfaces	     = 0x01,
+	.bConfigurationValue = 0x01,
+	.iConfiguration	     = 0x03,
+	.bmAttributes	     = 0x80,
+	.bMaxPower	     = 250,
+	.interface	     = &interfaces[1]
+};
+
+DESCRIPTOR
+const struct usb_string_descriptor usb_descriptor_string_languages = {
 	.bLength              = 0x04,
 	.bDescriptorType      = USB_DT_STRING,
 	.wData                = { USB_STRING_LANGID }
 };
 
-char* const usb_strings[] = {
+DESCRIPTOR
+const char* const usb_strings[] = {
 	"Great Scott Gadgets",
 	"HackRF",
 	"Transceiver",

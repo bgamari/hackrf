@@ -22,9 +22,9 @@
 #include <stdint.h>
 #include <libopencm3/usb/usbstd.h>
 
-extern uint8_t usb_descriptor_device[];
-extern uint8_t usb_descriptor_device_qualifier[];
-extern uint8_t usb_descriptor_configuration_full_speed[];
-extern uint8_t usb_descriptor_configuration_high_speed[];
-extern struct usb_string_descriptor usb_descriptor_string_languages;
-extern char* const usb_strings[];
+extern const struct usb_device_descriptor usb_descriptor_device;
+extern const struct usb_device_qualifier_descriptor usb_descriptor_device_qualifier;
+extern const struct usb_config_descriptor usb_descriptor_configuration_high_speed;
+extern const struct usb_config_descriptor usb_descriptor_configuration_full_speed;
+extern const struct usb_string_descriptor usb_descriptor_string_languages;
+extern const char* const usb_strings[];

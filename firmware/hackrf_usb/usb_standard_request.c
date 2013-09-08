@@ -30,15 +30,17 @@
 #include "usb_descriptor.h"
 #include "usb_queue.h"
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 const uint8_t* usb_endpoint_descriptor(
 	const usb_endpoint_t* const endpoint
 ) {
 	const usb_configuration_t* const configuration = endpoint->device->configuration;
 	if( configuration ) {
-		const uint8_t* descriptor = configuration->descriptor;
-		while( descriptor[0] != 0 ) {
-			if( descriptor[1] == USB_DESCRIPTOR_TYPE_ENDPOINT ) {
-				if( descriptor[2] == endpoint->address ) {
+		const struct usb_config_descriptor* descriptor = configuration->descriptor;
+		while( descriptor.bLength != 0 ) {
+			if( descriptor.bDescriptorType == USB_DT_ENDPOINT ) {
+				if( descriptor.wTotalLength == endpoint->address ) {
 					return descriptor;
 				}
 			}
@@ -115,7 +117,7 @@ static usb_request_status_t usb_send_descriptor(
 ) {
 	const uint32_t setup_length = endpoint->setup.length;
 	uint32_t descriptor_length = descriptor_data[0];
-	if( descriptor_data[1] == USB_DESCRIPTOR_TYPE_CONFIGURATION ) {
+	if( descriptor_data[1] == USB_DT_CONFIGURATION ) {
 		descriptor_length = (descriptor_data[3] << 8) | descriptor_data[2];
 	}
 	usb_transfer_schedule_block(
@@ -162,37 +164,119 @@ static usb_request_status_t usb_send_descriptor_string(
 	return usb_send_descriptor(endpoint, endpoint->buffer);
 }
 
+// This is taken from libopencm3's build_config_descriptor
+static usb_request_status_t usb_send_descriptor_config(
+	usb_endpoint_t* const endpoint,
+	const struct usb_config_descriptor* const cfg
+) {
+	uint8_t* buf = endpoint->buffer;
+	uint8_t* tmpbuf = buf;
+	uint16_t len = sizeof(endpoint->buffer);
+	uint16_t count, total = 0, totallen = 0;
+	uint16_t i, j, k;
+
+	memcpy(buf, cfg, count = MIN(len, cfg->bLength));
+	buf += count;
+	len -= count;
+	total += count;
+	totallen += cfg->bLength;
+
+	/* For each interface... */
+	for (i = 0; i < cfg->bNumInterfaces; i++) {
+		/* Interface Association Descriptor, if any */
+		if (cfg->interface[i].iface_assoc) {
+			const struct usb_iface_assoc_descriptor *assoc =
+					cfg->interface[i].iface_assoc;
+			memcpy(buf, assoc, count = MIN(len, assoc->bLength));
+			buf += count;
+			len -= count;
+			total += count;
+			totallen += assoc->bLength;
+		}
+		/* For each alternate setting... */
+		for (j = 0; j < cfg->interface[i].num_altsetting; j++) {
+			const struct usb_interface_descriptor *iface =
+					&cfg->interface[i].altsetting[j];
+			/* Copy interface descriptor. */
+			memcpy(buf, iface, count = MIN(len, iface->bLength));
+			buf += count;
+			len -= count;
+			total += count;
+			totallen += iface->bLength;
+			/* Copy extra bytes (function descriptors). */
+			memcpy(buf, iface->extra,
+			       count = MIN(len, iface->extralen));
+			buf += count;
+			len -= count;
+			total += count;
+			totallen += iface->extralen;
+			/* For each endpoint... */
+			for (k = 0; k < iface->bNumEndpoints; k++) {
+				const struct usb_endpoint_descriptor *ep =
+				    &iface->endpoint[k];
+				memcpy(buf, ep, count = MIN(len, ep->bLength));
+				buf += count;
+				len -= count;
+				total += count;
+				totallen += ep->bLength;
+			}
+		}
+	}
+
+	/* Fill in wTotalLength. */
+	*(uint16_t *)(tmpbuf + 2) = totallen;
+
+	return usb_send_descriptor(endpoint, endpoint->buffer);
+}
+
+static usb_request_status_t usb_send_descriptor_config_from_list(
+	usb_endpoint_t* const endpoint,
+	const usb_configuration* configs,
+	uint8_t config_num
+) {
+	for( ; *configs != NULL; configs++) {
+		if (*configs->bConfigurationValue == config_num) {
+			return usb_send_descriptor_config(endpoint, *configs);
+		}
+	}
+	return USB_REQUEST_STATUS_STALL;
+}
+
 static usb_request_status_t usb_standard_request_get_descriptor_setup(
 	usb_endpoint_t* const endpoint
 ) {
 	switch( endpoint->setup.value_h ) {
-	case USB_DESCRIPTOR_TYPE_DEVICE:
-		return usb_send_descriptor(endpoint, usb_descriptor_device);
-		
-	case USB_DESCRIPTOR_TYPE_CONFIGURATION:
-		// TODO: Duplicated code. Refactor.
-		if( usb_speed(endpoint->device) == USB_SPEED_HIGH ) {
-			return usb_send_descriptor(endpoint, usb_descriptor_configuration_high_speed);
-		} else {
-			return usb_send_descriptor(endpoint, usb_descriptor_configuration_full_speed);
-		}
-	
-	case USB_DESCRIPTOR_TYPE_DEVICE_QUALIFIER:
-		return usb_send_descriptor(endpoint, usb_descriptor_device_qualifier);
+	case USB_DT_DEVICE:
+		return usb_send_descriptor(endpoint, (uint8_t *) &usb_descriptor_device);
 
-	case USB_DESCRIPTOR_TYPE_OTHER_SPEED_CONFIGURATION:
+	case USB_DT_CONFIGURATION:
 		// TODO: Duplicated code. Refactor.
 		if( usb_speed(endpoint->device) == USB_SPEED_HIGH ) {
-			return usb_send_descriptor(endpoint, usb_descriptor_configuration_full_speed);
+			return usb_send_descriptor_config_from_list(endpoint, &usb_descriptor_configurations_high_speed,
+				endpoint->setup.value_l);
 		} else {
-			return usb_send_descriptor(endpoint, usb_descriptor_configuration_high_speed);
+			return usb_send_descriptor_config_from_list(endpoint, &usb_descriptor_configurations_full_speed,
+				endpoint->setup.value_l);
 		}
-	
-	case USB_DESCRIPTOR_TYPE_STRING:
+
+	case USB_DT_DEVICE_QUALIFIER:
+		return usb_send_descriptor(endpoint, (uint8_t *) &usb_descriptor_device_qualifier);
+
+	case USB_DT_OTHER_SPEED_CONFIGURATION:
+		// TODO: Duplicated code. Refactor.
+		if( usb_speed(endpoint->device) == USB_SPEED_HIGH ) {
+			return usb_send_descriptor_config_from_list(endpoint, &usb_descriptor_configurations_full_speed,
+				endpoint->setup.value_l);
+		} else {
+			return usb_send_descriptor_config_from_list(endpoint, &usb_descriptor_configurations_high_speed,
+				endpoint->setup.value_l);
+		}
+
+	case USB_DT_STRING:
 		return usb_send_descriptor_string(endpoint);
-		
-	case USB_DESCRIPTOR_TYPE_INTERFACE:
-	case USB_DESCRIPTOR_TYPE_ENDPOINT:
+
+	case USB_DT_INTERFACE:
+	case USB_DT_ENDPOINT:
 	default:
 		return USB_REQUEST_STATUS_STALL;
 	}

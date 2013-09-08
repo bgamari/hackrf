@@ -182,13 +182,13 @@ bool set_freq(uint32_t freq_mhz, uint32_t freq_hz)
 usb_configuration_t usb_configuration_high_speed = {
 	.number = 1,
 	.speed = USB_SPEED_HIGH,
-	.descriptor = usb_descriptor_configuration_high_speed,
+	.descriptor = &usb_descriptor_configuration_high_speed
 };
 
 usb_configuration_t usb_configuration_full_speed = {
 	.number = 1,
 	.speed = USB_SPEED_FULL,
-	.descriptor = usb_descriptor_configuration_full_speed,
+	.descriptor = &usb_descriptor_configuration_full_speed
 };
 
 usb_configuration_t* usb_configurations[] = {
@@ -198,7 +198,7 @@ usb_configuration_t* usb_configurations[] = {
 };
 
 usb_device_t usb_device = {
-	.descriptor = usb_descriptor_device,
+	.descriptor = (uint8_t *) &usb_descriptor_device,
 	.configurations = &usb_configurations,
 	.configuration = 0,
 };

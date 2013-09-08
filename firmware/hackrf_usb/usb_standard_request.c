@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "usb_standard_request.h"
 
@@ -107,7 +108,7 @@ bool usb_set_configuration(
 
 	return true;
 }
-	
+
 static usb_request_status_t usb_send_descriptor(
 	usb_endpoint_t* const endpoint,
 	uint8_t* const descriptor_data
@@ -120,7 +121,7 @@ static usb_request_status_t usb_send_descriptor(
 	usb_transfer_schedule_block(
 		endpoint->in,
 		descriptor_data,
-	 	(setup_length > descriptor_length) ? descriptor_length : setup_length,
+		(setup_length > descriptor_length) ? descriptor_length : setup_length,
 		NULL, NULL
 	);
 	usb_transfer_schedule_ack(endpoint->out);
@@ -130,14 +131,35 @@ static usb_request_status_t usb_send_descriptor(
 static usb_request_status_t usb_send_descriptor_string(
 	usb_endpoint_t* const endpoint
 ) {
-	uint_fast8_t index = endpoint->setup.value_l;
-	for( uint_fast8_t i=0; usb_descriptor_strings[i] != 0; i++ ) {
-		if( i == index ) {
-			return usb_send_descriptor(endpoint, usb_descriptor_strings[i]);
+	uint_fast8_t i = endpoint->setup.value_l;
+
+	if (i == 0) {
+		return usb_send_descriptor(endpoint, (uint8_t* const) &usb_descriptor_string_languages);
+	} else {
+		// Ignore languages string
+		i--;
+	}
+
+	const char* const * string = usb_strings;
+	for( ; i != 0; i--, string++ ) {
+		if( *string == NULL ) {
+			return USB_REQUEST_STATUS_STALL;
 		}
 	}
 
-	return USB_REQUEST_STATUS_STALL;
+	unsigned int length = strlen(*string);
+	if (2*length + 2 > sizeof(endpoint->buffer)) {
+		length = sizeof(endpoint->buffer) - 2;
+	}
+
+	struct usb_string_descriptor* const desc = (struct usb_string_descriptor *) &endpoint->buffer;
+	desc->bLength = 2*length + 2;
+	desc->bDescriptorType = USB_DT_STRING;
+	for (uint_fast8_t i = 0; i < length; i++) {
+		desc->wData[i] = ((*string)[i] << 8);
+	}
+
+	return usb_send_descriptor(endpoint, endpoint->buffer);
 }
 
 static usb_request_status_t usb_standard_request_get_descriptor_setup(

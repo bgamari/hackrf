@@ -20,7 +20,9 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
+#include "usb_descriptor.h"
 #include "usb_type.h"
 
 #define USB_VENDOR_ID			(0x1D50)
@@ -140,68 +142,15 @@ uint8_t usb_descriptor_configuration_high_speed[] = {
 	0,									// TERMINATOR
 };
 
-uint8_t usb_descriptor_string_languages[] = {
-	0x04,			    // bLength
-	USB_DESCRIPTOR_TYPE_STRING,	    // bDescriptorType
-	USB_WORD(USB_STRING_LANGID),	// wLANGID
+struct usb_string_descriptor usb_descriptor_string_languages = {
+	.bLength              = 0x04,
+	.bDescriptorType      = USB_DT_STRING,
+	.wData                = { USB_STRING_LANGID }
 };
 
-uint8_t usb_descriptor_string_manufacturer[] = {
-	40,					// bLength
-	USB_DESCRIPTOR_TYPE_STRING,	    // bDescriptorType
-	'G', 0x00,
-	'r', 0x00,
-	'e', 0x00,
-	'a', 0x00,
-	't', 0x00,
-	' ', 0x00,
-	'S', 0x00,
-	'c', 0x00,
-	'o', 0x00,
-	't', 0x00,
-	't', 0x00,
-	' ', 0x00,
-	'G', 0x00,
-	'a', 0x00,
-	'd', 0x00,
-	'g', 0x00,
-	'e', 0x00,
-	't', 0x00,
-	's', 0x00,
-};
-
-uint8_t usb_descriptor_string_product[] = {
-	14,						// bLength
-	USB_DESCRIPTOR_TYPE_STRING,		// bDescriptorType
-	'H', 0x00,
-	'a', 0x00,
-	'c', 0x00,
-	'k', 0x00,
-	'R', 0x00,
-	'F', 0x00,
-};
-
-uint8_t usb_descriptor_string_config1_description[] = {
-	24,						// bLength
-	USB_DESCRIPTOR_TYPE_STRING,		// bDescriptorType
-	'T', 0x00,
-	'r', 0x00,
-	'a', 0x00,
-	'n', 0x00,
-	's', 0x00,
-	'c', 0x00,
-	'e', 0x00,
-	'i', 0x00,
-	'v', 0x00,
-	'e', 0x00,
-	'r', 0x00,
-};
-
-uint8_t* const usb_descriptor_strings[] = {
-	usb_descriptor_string_languages,
-	usb_descriptor_string_manufacturer,
-	usb_descriptor_string_product,
-	usb_descriptor_string_config1_description,
-	
-	0,		// TERMINATOR
+char* const usb_strings[] = {
+	"Great Scott Gadgets",
+	"HackRF",
+	"Transceiver",
+	NULL
 };
